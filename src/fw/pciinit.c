@@ -99,8 +99,12 @@ pci_set_io_region_addr(struct pci_device *pci, int bar, u64 addr, int is64)
  ****************************************************************/
 
 /* host irqs corresponding to PCI irqs A-D */
-const u8 pci_irqs[4] = {
+const u8 pci_irqs_default[4] = {
     10, 10, 11, 11
+};
+
+const u8 pci_irqs_xen[4] = {
+    5, 10, 11, 5
 };
 
 static int dummy_pci_slot_get_irq(struct pci_device *pci, int pin)
@@ -117,6 +121,7 @@ static int (*pci_slot_get_irq)(struct pci_device *pci, int pin) =
 static int piix_pci_slot_get_irq(struct pci_device *pci, int pin)
 {
     int slot_addend = 0;
+    const u8 *pci_irqs = runningOnXen() ? pci_irqs_xen : pci_irqs_default;
 
     while (pci->parent != NULL) {
         slot_addend += pci_bdf_to_dev(pci->bdf);
@@ -129,6 +134,7 @@ static int piix_pci_slot_get_irq(struct pci_device *pci, int pin)
 static int mch_pci_slot_get_irq(struct pci_device *pci, int pin)
 {
     int pin_addend = 0;
+    const u8 *pci_irqs = runningOnXen() ? pci_irqs_xen : pci_irqs_default;
     while (pci->parent != NULL) {
         pin_addend += pci_bdf_to_dev(pci->bdf);
         pci = pci->parent;
@@ -147,6 +153,7 @@ static void piix_isa_bridge_setup(struct pci_device *pci, void *arg)
 {
     int i, irq;
     u8 elcr[2];
+    const u8 *pci_irqs = runningOnXen() ? pci_irqs_xen : pci_irqs_default;
 
     elcr[0] = 0x00;
     elcr[1] = 0x00;
@@ -185,6 +192,7 @@ static void mch_isa_bridge_setup(struct pci_device *dev, void *arg)
     u16 bdf = dev->bdf;
     int i, irq;
     u8 elcr[2];
+    const u8 *pci_irqs = runningOnXen() ? pci_irqs_xen : pci_irqs_default;
 
     elcr[0] = 0x00;
     elcr[1] = 0x00;
@@ -199,7 +207,8 @@ static void mch_isa_bridge_setup(struct pci_device *dev, void *arg)
         /* PIRQ[A-D] routing */
         pci_config_writeb(bdf, ICH9_LPC_PIRQA_ROUT + i, irq);
         /* PIRQ[E-H] routing */
-        pci_config_writeb(bdf, ICH9_LPC_PIRQE_ROUT + i, irq);
+        pci_config_writeb(bdf, ICH9_LPC_PIRQE_ROUT + i,
+                          runningOnXen() ? ICH9_LPC_PIRQ_ROUT_IRQEN : irq);
     }
     outb(elcr[0], ICH9_LPC_PORT_ELCR1);
     outb(elcr[1], ICH9_LPC_PORT_ELCR2);
